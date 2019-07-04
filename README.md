@@ -1,2 +1,2 @@
 # ML_final_assignment
-Coursewra Machinen Learning final assignment
+Coursera Machinen Learning final assignment
