@@ -1,0 +1,138 @@
+---
+title: "Machine Learning class, final assignment"
+date: "July 3, 2019"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Machine Learning class, final assignmen
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. 
+These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## How did I build the model
+Classe variable is a factor composed of five levels (from A to E) and is considered the outcome. Class A matches exactly a specific set of 10 repetitions of the Unilateral Dumbbell Biceps Curl; the other classes correspond to common mistakes, as per http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+As per the models, I will consider the most accurate between random forest and decision trees.
+
+## Cross validation
+In this case, the idea is subdivide the provided training data into two samples mantaining the 75% ratio seen during the class (75% for the training set and the remaining for the test data). During the following step, the model is fitted with the training data set and tested against the testing data. The crucial phase is the one where the right model (in terms of best accuracy) is selected, then the choiceis verified against the initial testing data.
+
+## Some definitions
+I define briefly here some entities useful to understand the code flow.
+Accuracy: number of correctly classified observations/the testing sample size;
+Sample error: 1-accuracy;
+
+## Implementation
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+
+setwd("K:/Dropbox/Personale/Coursera/Data Science/08. Practical Machine Learning/Project")
+
+# I make myself sure that all the results are reproducible (seed chosen as per the class slides)
+set.seed(32343)
+```
+
+The first step consists of retrieving the file in a local directory  (the file download is performed only if the file doesn't exist yet).
+
+```{r}
+if(!file.exists("c:/temp/pml-training.csv")) 
+{
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "c:/temp/pml-training.csv")
+}
+raw_training_data <- read.csv("c:/temp/pml-training.csv", sep=",", header=T)
+dim(raw_training_data)
+```
+# Clean the data according to different criteria
+```{r}
+# I don't consider all those variables that have no meaning in this context
+raw_training_data<-raw_training_data[, -c(1:7)]
+dim(raw_training_data)
+
+# I remove the NA values
+
+raw_training_data <-raw_training_data[, colSums(is.na(raw_training_data)) == 0]
+dim(raw_training_data)
+
+# Finally, remove the parameters that have a nearly-zero variance
+non_zero_variance <- nearZeroVar(raw_training_data)
+training_data <- raw_training_data[, -non_zero_variance]
+dim(training_data)
+
+if(!file.exists("c:/temp/pml-testing.csv")) 
+{
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "c:/temp/pml-testing.csv")
+}
+raw_testing_data <- read.csv("c:/temp/pml-testing.csv", sep=",", header=T)
+
+# same considerations as earlier
+raw_testing_data<-raw_testing_data[, -c(1:7)]
+testing_data <-raw_testing_data[, colSums(is.na(raw_testing_data)) == 0]
+
+dim(testing_data)
+
+
+```
+## Create a partition of the data
+```{r}
+
+part_data <- createDataPartition(y=training_data$classe, p=0.75, list=FALSE)
+
+
+part_data_training<-training_data[part_data,]
+part_data_testing <-training_data[-part_data,]
+
+
+dim(part_data_training)
+dim(part_data_testing)
+
+```
+## Create the first prediction model using Random Forest
+```{r}
+
+model_ft<-randomForest(classe ~ ., data= part_data_training)
+
+prediction_ft<-predict(model_ft, part_data_testing, type = "class")
+
+confusionMatrix(prediction_ft, part_data_testing$classe)
+```
+## Create the second prediction model using Decision Trees
+```{r}
+model_dt <- rpart(classe ~ ., data=part_data_training, method="class")
+
+# Predicting:
+prediction_dt <- predict(model_dt, part_data_testing, type = "class")
+
+# Plot of the Decision Tree
+confusionMatrix(prediction_dt, part_data_testing$classe)
+```
+## Model choice
+According to the above calculations, Random Forest algorithm has a better accuracy with respect to Decision Trees.
+In the case of Random Forest, the model has an accuracy equal to 0.9947 (95% CI: (0.9922, 0.9965)) against 0.7341 (95% CI: (0.7215, 0.7464)) within Decision Tree model. 
+
+As a result, the random Forest model is the right one, whith an accuracy equal to 0.9947. The expected out-of-sample error is 0.5%,calculated as 1 - accuracy. 
+
+## Course Project Prediction Quiz Portion
+```{r}
+
+# predict outcome levels on the original Testing data set using Random Forest algorithm
+submitted <- predict(model_ft, testing_data, type="class")
+submitted
+
+```
+
+## Write the quiz to files
+```{r}
+# Write files for submission
+
+
+  for(i in 1:length(submitted)){
+    filename = paste0("question_number_",i,".txt")
+    write.table(submitted[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+
+
+
+```
